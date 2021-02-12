@@ -119,6 +119,7 @@ class _ModelBuilder:
         self._input_vars = None
 
         self._dep_processes = None
+        self._seemingly_cyclic_dep_processes = None
         self._sorted_processes = None
 
         # a cache for group keys
@@ -412,14 +413,24 @@ class _ModelBuilder:
 
         """
         self._dep_processes = {k: set() for k in self._processes_obj}
+        self._seemingly_cyclic_dep_processes = {k: set() for k in self._processes_obj}
 
         d_keys = {}  # all state/on-demand keys for each process
+        s_keys = {}  # all state/on-demand keys for each process with seemingly_cyclic=True
 
         for p_name, p_obj in self._processes_obj.items():
+
+            variables = variables_dict(p_obj.__class__)
             d_keys[p_name] = _flatten_keys(
                 [
-                    p_obj.__xsimlab_state_keys__.values(),
+                    [p_obj.__xsimlab_state_keys__[key]  for key in p_obj.__xsimlab_state_keys__ if "seemingly_cyclic" not in variables[key].metadata or not variables[key].metadata["seemingly_cyclic"]],
                     p_obj.__xsimlab_od_keys__.values(),
+                ]
+            )
+            s_keys[p_name] = _flatten_keys(
+                [
+                    [p_obj.__xsimlab_state_keys__[key]  for key in p_obj.__xsimlab_state_keys__ if "seemingly_cyclic" in variables[key].metadata and variables[key].metadata["seemingly_cyclic"]],
+
                 ]
             )
 
@@ -431,12 +442,16 @@ class _ModelBuilder:
                     key = p_obj.__xsimlab_state_keys__[var.name]
 
                 for pn in self._processes_obj:
-                    if pn != p_name and key in d_keys[pn]:
-                        self._dep_processes[pn].add(p_name)
+                    if pn != p_name:
+                        if key in d_keys[pn]:
+                            self._dep_processes[pn].add(p_name)
+                        elif key in s_keys[pn]:
+                            self._seemingly_cyclic_dep_processes[pn].add(p_name)
 
         self._dep_processes = {k: list(v) for k, v in self._dep_processes.items()}
+        self._seemingly_cyclic_dep_processes = {k: list(v) for k, v in self._seemingly_cyclic_dep_processes.items()}
 
-        return self._dep_processes
+        return self._dep_processes, self._seemingly_cyclic_dep_processes
 
     def _sort_processes(self):
         """Sort processes based on their dependencies (return a list of sorted
@@ -572,7 +587,9 @@ class Model(AttrMapping):
 
         self._processes_to_validate = builder.get_processes_to_validate()
 
-        self._dep_processes = builder.get_process_dependencies()
+        _dep_processes, _seemingly_cyclic_dep_processes = builder.get_process_dependencies()
+        self._dep_processes = _dep_processes
+        self._seemingly_cyclic_dep_processes = _seemingly_cyclic_dep_processes
         self._processes = builder.get_sorted_processes()
 
         super(Model, self).__init__(self._processes)

@@ -33,6 +33,7 @@ PROC_NODE_ATTRS = {
     "fillcolor": "#c6d2f6",
 }
 PROC_EDGE_ATTRS = {"color": "#3454b4", "style": "bold"}
+PROC_SEEMINGLY_CYCLIC_EDGE_ATTRS = {"color": "#555555", "style": "dashed"}
 INPUT_NODE_ATTRS = {
     "shape": "box",
     "color": "#b49434",
@@ -72,6 +73,9 @@ class _GraphBuilder:
 
             for dep_p_name in self.model.dependent_processes[p_name]:
                 self.g.edge(dep_p_name, p_name, **PROC_EDGE_ATTRS)
+
+            for dep_p_name in self.model._seemingly_cyclic_dep_processes[p_name]:
+                self.g.edge(dep_p_name, p_name, **PROC_SEEMINGLY_CYCLIC_EDGE_ATTRS)
 
     def _add_var(self, var, p_name):
         if (p_name, var.name) in self.model._input_vars:

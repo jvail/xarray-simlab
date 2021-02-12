@@ -463,7 +463,7 @@ def foreign(other_process_cls, var_name, intent="in"):
     return attr.attrib(metadata=metadata, init=_init, repr=_repr, kw_only=True)
 
 
-def global_ref(name, intent="in"):
+def global_ref(name, intent="in", seemingly_cyclic=False):
     """Create a reference to a variable that is defined somewhere else
     in a model with a unique, global name.
 
@@ -495,6 +495,7 @@ def global_ref(name, intent="in"):
         "var_type": VarType.GLOBAL,
         "global_name": name,
         "intent": VarIntent(intent),
+        "seemingly_cyclic": seemingly_cyclic
     }
 
     if VarIntent(intent) == VarIntent.OUT:
