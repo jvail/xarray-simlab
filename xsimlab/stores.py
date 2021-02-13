@@ -4,6 +4,7 @@ from typing import Any, Dict, Optional, Tuple, Union
 import numpy as np
 import xarray as xr
 import zarr
+import sparse
 
 from . import Model
 from .utils import get_batch_size, normalize_encoding
@@ -14,6 +15,9 @@ VarKey = Tuple[str, str]
 EncodingDict = Dict[str, Dict[str, Any]]
 
 _DIMENSION_KEY = "_ARRAY_DIMENSIONS"
+
+def _maybe_to_dense(maybe_sparse):
+    return maybe_sparse.todense() if type(maybe_sparse) is sparse.COO else maybe_sparse
 
 
 def _get_var_info(
@@ -187,7 +191,7 @@ class ZarrSimulationStore:
         if name is None:
             name = var_info["name"]
 
-        value = model.cache[var_key]["value"]
+        value = _maybe_to_dense(model.cache[var_key]["value"])
         clock = var_info["clock"]
 
         dtype = getattr(value, "dtype", np.asarray(value).dtype)
@@ -306,7 +310,7 @@ class ZarrSimulationStore:
 
             for vk in var_keys:
                 zkey = self.var_info[vk]["name"]
-                value = model.cache[vk]["value"]
+                value = _maybe_to_dense(model.cache[vk]["value"])
 
                 self._maybe_resize_zarr_dataset(model, vk)
 
