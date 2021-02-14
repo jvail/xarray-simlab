@@ -409,7 +409,7 @@ def any_object(global_name=None, groups=None, description="", attrs=None):
     return attr.attrib(metadata=metadata, init=False, repr=False)
 
 
-def foreign(other_process_cls, var_name, intent="in"):
+def foreign(other_process_cls, var_name, intent="in", seemingly_cyclic=False):
     """Create a reference to a variable that is defined in another
     process class.
 
@@ -446,6 +446,7 @@ def foreign(other_process_cls, var_name, intent="in"):
         "other_process_cls": other_process_cls,
         "var_name": var_name,
         "intent": VarIntent(intent),
+        "seemingly_cyclic": seemingly_cyclic
     }
 
     for meta_key in ["description", "dims", "attrs", "encoding"]:
