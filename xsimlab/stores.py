@@ -8,6 +8,13 @@ import zarr
 from . import Model
 from .utils import get_batch_size, normalize_encoding
 from .variable import VarType
+from .sparse import (
+    _cover_sparse,
+    _recover_sparse,
+    _sparse_to_zarr_digestible,
+    _is_sparse,
+    _sparse_attrs
+)
 
 
 VarKey = Tuple[str, str]
@@ -177,7 +184,7 @@ class ZarrSimulationStore:
         # remove xarray-simlab reserved attributes for output variables
         ds.xsimlab._reset_output_vars(self.model, {})
 
-        ds.to_zarr(self.zgroup.store, group=self.zgroup.path, mode="a")
+        _cover_sparse(ds).to_zarr(self.zgroup.store, group=self.zgroup.path, mode="a")
 
     def _create_zarr_dataset(
         self, model: Model, var_key: VarKey, name: Optional[str] = None
@@ -189,6 +196,10 @@ class ZarrSimulationStore:
 
         value = model.cache[var_key]["value"]
         clock = var_info["clock"]
+        is_sparse = _is_sparse(value)
+        if is_sparse:
+            value_sparse = value
+            value = _sparse_to_zarr_digestible(value, 0 if clock is not None else clock)
 
         dtype = getattr(value, "dtype", np.asarray(value).dtype)
         shape = list(np.shape(value))
@@ -234,6 +245,9 @@ class ZarrSimulationStore:
             if len(dims) == len(np.shape(value)):
                 dim_labels = list(dims)
 
+        if is_sparse:
+            dim_labels = [f'{name}_dim']
+
         if dim_labels is None:
             raise ValueError(
                 f"Output array of {value.ndim} dimension(s) "
@@ -250,6 +264,10 @@ class ZarrSimulationStore:
         if var_info["metadata"]["description"]:
             zdataset.attrs["description"] = var_info["metadata"]["description"]
         zdataset.attrs.update(var_info["metadata"]["attrs"])
+        if is_sparse:
+            zdataset.attrs.update({
+                **_sparse_attrs(value_sparse, var_info["metadata"]["dims"][0])
+            })
 
         # reset consolidated since metadata has just been updated
         self.consolidated = False
@@ -266,6 +284,10 @@ class ZarrSimulationStore:
         zkey = var_info["name"]
         zshape = self.zgroup[zkey].shape
         value = model.cache[var_key]["value"]
+        is_sparse = _is_sparse(value)
+        if is_sparse:
+            sparse_value = value
+            value = _sparse_to_zarr_digestible(value)
         value_shape = list(np.shape(value))
 
         # maybe prepend clock dim (do not resize this dim)
@@ -281,6 +303,10 @@ class ZarrSimulationStore:
         if np.any(new_shape > zshape):
             with self.lock:
                 self.zgroup[zkey].resize(new_shape)
+            if is_sparse:
+                self.zgroup[zkey].attrs.update({
+                    **_sparse_attrs(sparse_value, var_info["metadata"]["dims"][0])
+                })
 
     def write_output_vars(self, batch: int, step: int, model: Optional[Model] = None):
         if model is None:
@@ -308,6 +334,10 @@ class ZarrSimulationStore:
                 zkey = self.var_info[vk]["name"]
                 value = model.cache[vk]["value"]
 
+                is_sparse = _is_sparse(value)
+                if is_sparse:
+                    value = _sparse_to_zarr_digestible(value, clock_inc if clock is not None else clock)
+
                 self._maybe_resize_zarr_dataset(model, vk)
 
                 if clock is None:
@@ -325,7 +355,6 @@ class ZarrSimulationStore:
                         idx_dims.insert(0, batch)
 
                     idx = tuple(idx_dims)
-
                 self.zgroup[zkey][idx] = value
 
             self.clock_incs[clock][batch] += 1
@@ -372,4 +401,4 @@ class ZarrSimulationStore:
                 if not da.dims:
                     da.load()
 
-        return ds
+        return _recover_sparse(ds)
