@@ -228,6 +228,9 @@ class ZarrSimulationStore:
 
         zkwargs.update(var_info["encoding"])
 
+        if is_sparse and not 'fill_value' in var_info["encoding"]:
+            zkwargs["fill_value"] = None
+
         try:
             # TODO: race condition? use lock?
             zdataset = self.zgroup.create_dataset(name, **zkwargs)

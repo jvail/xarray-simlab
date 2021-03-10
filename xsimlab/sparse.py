@@ -48,10 +48,11 @@ def _recover_sparse(ds):
             shape = (len(da.data), *da.attrs['__xsimlab_sparse_shape__']) if has_clock_dim else da.attrs['__xsimlab_sparse_shape__']
             dims = (da.dims[0], *da.attrs['__xsimlab_sparse_dims__']) if has_clock_dim else da.attrs['__xsimlab_sparse_dims__']
             fill_value = da.attrs['__xsimlab_sparse_fill_value__']
+            _len = len(dims)
             if has_clock_dim:
-                data = {tuple(list(v)[:len(v)-1]):v[-1] for clock in da.data for v in clock if v[-1] != fill_value}
+                data = {tuple(list(v)[:_len]):v[-1] for clock in da.data for v in clock}
             else:
-                data = {tuple(list(v)[:len(v)-1]):v[-1] for v in da.data if v[-1] != fill_value}
+                data = {tuple(list(v)[:_len]):v[-1] for v in da.data}
             data = sparse.DOK(shape, data=data).asformat(da.attrs['__xsimlab_sparse_format__'])
             attrs = {
                 name: value for name, value in da.attrs.items() if not name.startswith('__xsimlab_sparse')
