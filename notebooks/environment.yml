@@ -1,0 +1,7 @@
+name: test_encoding_netcdf
+channels:
+  - conda-forge
+dependencies:
+  - notebook
+  - xarray-simlab=0.5.*
+  - netCDF4
